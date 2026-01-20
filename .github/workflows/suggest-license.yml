@@ -2,9 +2,9 @@ name: Auto-Fix Missing License
 
 on:
   workflow_dispatch:
-    inputs: 
+    inputs:
       target_repo:
-        description: 'Target Repository (e.g.  facebook/react)'
+        description: "Target Repository (e.g.  facebook/react)"
         required: true
         type: string
   issues:
@@ -13,15 +13,15 @@ on:
 jobs:
   fix-license:
     runs-on: ubuntu-latest
-    if:  |
+    if: |
       github.event_name == 'workflow_dispatch' || 
-      (github.event. label.name == 'missing-license' && github.actor == github.repository_owner)
-    
+      (contains(github.event.issue.labels.*.name, 'missing-license') && github.actor == github.repository_owner)
+
     permissions:
       contents: write
       pull-requests: write
       issues: write
-    
+
     steps:
       - name: Setup Tools
         run: |
@@ -31,7 +31,7 @@ jobs:
 
       # --- Install the Go-based License Detector ---
       - name: Install go-license-detector
-        run:  |
+        run: |
           echo "Installing license-detector..."
           # We use 'go install' which is standard on GitHub runners
           go install github.com/go-enry/go-license-detector/v4/cmd/license-detector@latest
@@ -39,11 +39,11 @@ jobs:
       - name: Resolve Target Repository
         id: resolve_target
         env:
-          EVENT_NAME:  ${{ github.event_name }}
+          EVENT_NAME: ${{ github.event_name }}
           INPUT_REPO: ${{ inputs.target_repo }}
           ISSUE_BODY: ${{ github.event. issue.body }}
           GH_TOKEN: ${{ secrets. GITHUB_TOKEN }}
-        run:  |
+        run: |
           if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
             echo "TARGET_REPO=$INPUT_REPO" >> $GITHUB_ENV
           else
@@ -84,7 +84,7 @@ jobs:
       - name: Fork and Clone Repository
         if: steps.check_license.outputs.exists == 'false'
         env:
-          GH_TOKEN:  ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh repo fork "$TARGET_REPO" --clone=true --default-branch-only
           REPO_NAME=$(echo "$TARGET_REPO" | cut -d'/' -f2)
@@ -94,18 +94,18 @@ jobs:
       - name: Detect License (Heuristic)
         if: steps.check_license.outputs. exists == 'false'
         id: detect
-        env: 
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd ${{ env.REPO_DIR }}
-          
+
           echo "Running heuristic detection..."
-          
+
           # 1. Try package.json first (Explicit metadata is best)
           if [ -f "package.json" ]; then
             LICENSE_TYPE=$(jq -r '. license // empty' package.json)
           fi
-          
+
           # 2. If no package.json license, use go-license-detector on READMEs
           if [ -z "$LICENSE_TYPE" ]; then
             echo "No package.json license found.  Scanning READMEs..."
@@ -120,25 +120,25 @@ jobs:
             echo ":: error::Could not detect any license from package.json or README."
             exit 1
           fi
-          
+
           echo "Detected license: $LICENSE_TYPE"
           echo "LICENSE_TYPE=$LICENSE_TYPE" >> $GITHUB_ENV
 
-      - name:  Fetch License Text
+      - name: Fetch License Text
         if: steps.check_license.outputs.exists == 'false'
-        env: 
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd ${{ env.REPO_DIR }}
           LICENSE_BODY=$(gh api licenses/${{ env.LICENSE_TYPE }} --jq '.body')
-          
+
           if [ -z "$LICENSE_BODY" ]; then
             echo "::error::Could not find official text for license type: ${{ env.LICENSE_TYPE }}"
             exit 1
           fi
 
           CURRENT_YEAR=$(date +%Y)
-          
+
           # Try to find author in package.json, otherwise use repo owner
           AUTHOR=""
           if [ -f "package.json" ]; then
@@ -147,20 +147,20 @@ jobs:
           if [ -z "$AUTHOR" ]; then
              AUTHOR=$(echo "$TARGET_REPO" | cut -d'/' -f1)
           fi
-          
+
           echo "$LICENSE_BODY" | sed "s/\[year\]/$CURRENT_YEAR/g" | sed "s/\[fullname\]/$AUTHOR/g" > LICENSE
 
       - name: Commit, Push and PR
         if: steps. check_license.outputs.exists == 'false'
-        env: 
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run:  |
+        run: |
           cd ${{ env. REPO_DIR }}
           git checkout -b chore/add-license
           git add LICENSE
           git commit -m "chore: add missing ${{ env.LICENSE_TYPE }} license"
           git push -u origin chore/add-license
-          
+
           PR_URL=$(gh pr create \
             --repo "$TARGET_REPO" \
             --title "chore: add missing LICENSE file" \
@@ -173,5 +173,5 @@ jobs:
         if: github.event_name == 'issues' && env.ISSUE_NUMBER != '' && steps.check_license. outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ secrets. GITHUB_TOKEN }}
-        run:  |
+        run: |
           gh issue comment ${{ env.ISSUE_NUMBER }} --body "✅ **Success! ** I have opened a PR here: ${{ env.PR_URL }}"
