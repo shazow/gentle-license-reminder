@@ -59,7 +59,7 @@ jobs:
       - name: Check for Existing License
         id: check_license
         env:
-          GH_TOKEN: ${{ secrets.PAT_FOR_FORKING }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_REPO: ${{ env.TARGET_REPO }}
         run: |
           FILES=$(gh api "repos/$TARGET_REPO/contents" --jq '.[].name')
@@ -84,7 +84,7 @@ jobs:
       - name: Fork and Clone Repository
         if: steps.check_license.outputs.exists == 'false'
         env:
-          GH_TOKEN:  ${{ secrets.PAT_FOR_FORKING }}
+          GH_TOKEN:  ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh repo fork "$TARGET_REPO" --clone=true --default-branch-only
           REPO_NAME=$(echo "$TARGET_REPO" | cut -d'/' -f2)
@@ -127,7 +127,7 @@ jobs:
       - name:  Fetch License Text
         if: steps.check_license.outputs.exists == 'false'
         env: 
-          GH_TOKEN: ${{ secrets.PAT_FOR_FORKING }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd ${{ env.REPO_DIR }}
           LICENSE_BODY=$(gh api licenses/${{ env.LICENSE_TYPE }} --jq '.body')
@@ -153,7 +153,7 @@ jobs:
       - name: Commit, Push and PR
         if: steps. check_license.outputs.exists == 'false'
         env: 
-          GH_TOKEN: ${{ secrets.PAT_FOR_FORKING }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run:  |
           cd ${{ env. REPO_DIR }}
           git checkout -b chore/add-license
