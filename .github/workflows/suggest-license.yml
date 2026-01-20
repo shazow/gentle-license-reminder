@@ -8,7 +8,7 @@ on:
         required: true
         type: string
   issues:
-    types: [labeled]
+    types: [labeled, reopened]
 
 jobs:
   fix-license:
